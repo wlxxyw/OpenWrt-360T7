@@ -15,8 +15,8 @@ on:
     inputs:
       manual:
         description: '手动触发一次编译'
-  schedule:
-    - cron: 0 16 * * 5
+#  schedule:
+#    - cron: 0 16 * * 5
 
 env:
   REPO_URL: https://github.com/hanwckf/immortalwrt-mt798x
@@ -27,7 +27,6 @@ env:
   DIY_P2_SH: diy2.sh
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
-  PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
   TZ: Asia/Shanghai
 
 jobs:
@@ -43,19 +42,13 @@ jobs:
         DEBIAN_FRONTEND: noninteractive
       run: |
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
-        sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.eu.org/init_build_environment.sh)'
+        sudo bash -c 'bash <(curl -fsSL https://build-scripts.immortalwrt.org/init_build_environment.sh)'
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
         echo "FIRMWARE_VERSION=$(date +"%y%m%d")" >> $GITHUB_ENV
         echo "START_DATE=$(date +'%Y年%m月%d日 %H点%M分%S秒')" >> $GITHUB_ENV
 
-    - name: PushPlus 通知
-      if: env.PUSHPLUS_TOKEN
-      continue-on-error: true
-      run: |
-        curl -k -d "title=开始编译OpenWrt-360T7固件" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}" -d "token=${{ env.PUSHPLUS_TOKEN }}" "http://www.pushplus.plus/send"
-    
     - name: 下载源码
       working-directory: /workdir
       run: |
@@ -99,7 +92,7 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s || (curl -k -d "title=OpenWrt-360T7固件编译失败" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=${{ env.PUSHPLUS_TOKEN }}&channel=cp&webhook=server" "http://www.pushplus.plus/send")
+        make -j$(nproc) || make -j1 || make -j1 V=s 
         echo "status=success" >> $GITHUB_OUTPUT
 
     - name: 整理固件
@@ -148,12 +141,6 @@ jobs:
         tag_name: ${{ steps.tag.outputs.release_tag }}
         body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
-
-    - name: PushPlus 通知
-      if: env.PUSHPLUS_TOKEN
-      continue-on-error: true
-      run: |
-        curl -k -d "title=OpenWrt-360T7固件编译成功" -d "content=编译固件版本：${{ env.FIRMWARE_VERSION }}%0A编译开始时间：${{ env.START_DATE }}%0A编译结束时间：$(date +'%Y年%m月%d日 %H点%M分%S秒')" -d "token=${{ env.PUSHPLUS_TOKEN }}" "http://www.pushplus.plus/send"
 
     - name: 删除工作流运行
       uses: GitRML/delete-workflow-runs@main
